@@ -1,0 +1,8 @@
+PySide6
+opencv-python
+apscheduler
+mss
+numpy
+sounddevice
+soundfile
+scipy
