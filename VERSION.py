@@ -1,11 +1,24 @@
 # Video Recorder - Version Information
 
-VERSION = "1.0.0"
-BUILD_DATE = "April 18, 2026"
+VERSION = "1.0.1"
+BUILD_DATE = "April 19, 2026"
 PROJECT_NAME = "Video Recorder with Audio Source Selection"
 
 # Version History
 HISTORY = {
+    "1.0.1": {
+        "date": "April 19, 2026",
+        "features": [
+            "Fixed audio/video synchronization using threading.Event",
+            "Added 2x volume boost with audio normalization",
+            "Fixed audio-only recording issue with proper video initialization",
+            "Added 'All of Above' audio source option for multi-device recording",
+            "Improved EXE filename with proper version number (VictorVideo_1.0.1.exe)",
+            "Enhanced status logging and error handling",
+            "Fixed Fresh button for quick start time updates",
+            "Added schedule recording with validation"
+        ]
+    },
     "1.0.0": {
         "date": "April 18, 2026",
         "features": [

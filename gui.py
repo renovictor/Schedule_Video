@@ -1,9 +1,11 @@
 from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QDateTimeEdit, QPushButton, QMessageBox, QLineEdit, QFileDialog, QComboBox, QTextEdit
-from PySide6.QtCore import QDateTime
+from PySide6.QtCore import QDateTime, Qt
+from PySide6.QtGui import QIcon, QFont
 from capture import VideoRecorder
 from scheduler import RecordingScheduler
 import sys
 from datetime import datetime
+import os
 
 class MainWindow(QWidget):
     def __init__(self):
@@ -11,28 +13,64 @@ class MainWindow(QWidget):
         self.recorder = VideoRecorder()
         self.scheduler = RecordingScheduler(self.recorder)
         self.init_ui()
+        # Register callback with scheduler after UI is initialized
+        self.scheduler.set_status_callback(self.add_status_message)
 
     def init_ui(self):
         self.setWindowTitle('Video Recorder Scheduler')
         self.setGeometry(100, 100, 500, 500)
 
+        # Set window icon
+        icon_path = os.path.join(os.path.dirname(__file__), 'global_search_international.ico')
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+
         layout = QVBoxLayout()
+
+        # LED Status Indicator
+        led_layout = QHBoxLayout()
+        led_layout.addWidget(QLabel('Recording Status:'))
+        self.led_indicator = QLabel('●')
+        self.led_indicator.setFont(QFont('Arial', 20, QFont.Bold))
+        self.led_indicator.setStyleSheet('color: green;')  # Default to green (stopped)
+        self.led_indicator.setAlignment(Qt.AlignCenter)
+        led_layout.addWidget(self.led_indicator)
+        led_layout.addStretch()
+        layout.addLayout(led_layout)
 
         # Start time
         start_layout = QHBoxLayout()
+        
+        # Fresh button to reset start time to current
+        fresh_button = QPushButton('Fresh')
+        fresh_button.setMaximumWidth(80)
+        fresh_button.clicked.connect(self.on_refresh_start_time)
+        start_layout.addWidget(fresh_button)
+        
         start_layout.addWidget(QLabel('Start Time:'))
         self.start_time_edit = QDateTimeEdit()
         self.start_time_edit.setDateTime(QDateTime.currentDateTime())
         start_layout.addWidget(self.start_time_edit)
         layout.addLayout(start_layout)
 
-        # End time
-        end_layout = QHBoxLayout()
-        end_layout.addWidget(QLabel('End Time:'))
-        self.end_time_edit = QDateTimeEdit()
-        self.end_time_edit.setDateTime(QDateTime.currentDateTime().addSecs(3600))  # Default 1 hour later
-        end_layout.addWidget(self.end_time_edit)
-        layout.addLayout(end_layout)
+        # Duration selection
+        duration_layout = QHBoxLayout()
+        duration_layout.addWidget(QLabel('Duration:'))
+        self.duration_combo = QComboBox()
+        self.duration_options = [
+            ('2m', 2 * 60),  # Test option
+            ('30m', 30 * 60),
+            ('1H', 1 * 3600),
+            ('1.5H', int(1.5 * 3600)),
+            ('2H', 2 * 3600),
+            ('2.5H', int(2.5 * 3600)),
+            ('3H', 3 * 3600)
+        ]
+        for label, _ in self.duration_options:
+            self.duration_combo.addItem(label)
+        self.duration_combo.setCurrentIndex(1)  # Default to 30m
+        duration_layout.addWidget(self.duration_combo)
+        layout.addLayout(duration_layout)
 
         # Output file
         output_layout = QHBoxLayout()
@@ -50,9 +88,13 @@ class MainWindow(QWidget):
         source_layout.addWidget(QLabel('Record Source:'))
         self.source_combo = QComboBox()
         self.source_combo.addItems(['Camera', 'Screen 1', 'Screen 2', 'Screen 3'])
+        self.source_combo.setCurrentIndex(1)  # Default to Screen 1
         self.source_combo.currentIndexChanged.connect(self.on_source_changed)
         source_layout.addWidget(self.source_combo)
         layout.addLayout(source_layout)
+
+        # Initialize the source
+        self.on_source_changed()
 
         # Audio source selection
         audio_layout = QHBoxLayout()
@@ -100,6 +142,11 @@ class MainWindow(QWidget):
         self.status_text.setPlaceholderText("Recording status will be displayed here...")
         layout.addWidget(self.status_text, 1)  # Give it stretch factor of 1
 
+        # Exit button
+        exit_button = QPushButton('Exit')
+        exit_button.clicked.connect(self.close)
+        layout.addWidget(exit_button)
+
         self.setLayout(layout)
 
     def browse_file(self):
@@ -107,6 +154,17 @@ class MainWindow(QWidget):
         file_name, _ = QFileDialog.getSaveFileName(self, "Select Output File", "", "MP4 Files (*.mp4);;All Files (*)", options=options)
         if file_name:
             self.path_edit.setText(file_name)
+
+    def on_refresh_start_time(self):
+        """Update start time to current time when Fresh button is clicked"""
+        current_time = QDateTime.currentDateTime()
+        self.start_time_edit.setDateTime(current_time)
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        self.status_text.append(f"[{timestamp}] Start time refreshed to: {current_time.toString()}")
+
+    def add_status_message(self, message):
+        """Add a message to the status text area (used by scheduler callbacks)"""
+        self.status_text.append(message)
 
     def on_source_changed(self):
         source = self.source_combo.currentText()
@@ -124,20 +182,32 @@ class MainWindow(QWidget):
             devices = sd.query_devices()
             audio_inputs = []
             audio_input_ids = []
+            realtek_index = -1
             
             for i, device in enumerate(devices):
                 # Only add input devices
                 if device['max_input_channels'] > 0:
                     audio_inputs.append(f"{device['name']}")
                     audio_input_ids.append(i)
+                    # Look for Microphone Array (Realtek(R) Audio)
+                    if 'Microphone Array' in device['name'] and 'Realtek' in device['name']:
+                        realtek_index = len(audio_inputs) - 1
+            
+            # Add "All of Above" option at the end
+            audio_inputs.append("All of Above")
+            audio_input_ids.append("all")  # Special marker for all devices
             
             self.audio_input_ids = audio_input_ids
             self.audio_combo.addItems(audio_inputs)
             
-            # Select default input device
-            default_device = sd.default.device[0]
-            if default_device in audio_input_ids:
-                self.audio_combo.setCurrentIndex(audio_input_ids.index(default_device))
+            # Set default to Microphone Array (Realtek(R) Audio) if found, otherwise use default device
+            if realtek_index >= 0:
+                self.audio_combo.setCurrentIndex(realtek_index)
+            else:
+                # Fallback to default input device
+                default_device = sd.default.device[0]
+                if default_device in audio_input_ids:
+                    self.audio_combo.setCurrentIndex(audio_input_ids.index(default_device))
         except Exception as e:
             print(f"Error populating audio devices: {e}")
             self.audio_combo.addItem("Default Audio Input")
@@ -174,32 +244,65 @@ class MainWindow(QWidget):
 
     def update_button_states(self, state):
         if state == 'recording':
-            # When recording: Start disabled, Pause and Stop enabled
+            # When recording: Start disabled, Pause and Stop enabled, LED red
             self.start_button.setEnabled(False)
             self.pause_button.setEnabled(True)
             self.stop_button.setEnabled(True)
+            self.led_indicator.setStyleSheet('color: red;')
         elif state == 'paused':
-            # When paused: Start and Stop enabled, Pause disabled
+            # When paused: Start and Stop enabled, Pause disabled, LED yellow
             self.start_button.setEnabled(True)
             self.pause_button.setEnabled(False)
             self.stop_button.setEnabled(True)
+            self.led_indicator.setStyleSheet('color: orange;')
         elif state == 'stopped':
-            # When stopped: Start enabled, Pause and Stop disabled
+            # When stopped: Start enabled, Pause and Stop disabled, LED green
             self.start_button.setEnabled(True)
             self.pause_button.setEnabled(False)
             self.stop_button.setEnabled(False)
+            self.led_indicator.setStyleSheet('color: green;')
 
     def schedule_recording(self):
+        from datetime import timedelta
         start_dt = self.start_time_edit.dateTime().toPython()
-        end_dt = self.end_time_edit.dateTime().toPython()
+        current_dt = datetime.now()
+        
+        # Get the selected duration in seconds
+        duration_index = self.duration_combo.currentIndex()
+        duration_seconds = self.duration_options[duration_index][1]
+        
+        # Calculate end time by adding duration to start time
+        end_dt = start_dt + timedelta(seconds=duration_seconds)
         output_path = self.path_edit.text()
 
         if start_dt >= end_dt:
             QMessageBox.warning(self, 'Invalid Time', 'Start time must be before end time.')
             return
 
+        # Check if start time is in the future
+        if start_dt <= current_dt:
+            QMessageBox.warning(self, 'Invalid Time', 'Start time must be in the future. Use "Fresh" button to update to current time.')
+            return
+
+        # Configure recorder with current settings
+        output_path = self.path_edit.text()
+        self.recorder.output_file = output_path
+        source = self.source_combo.currentText()
+        audio_source = self.audio_combo.currentText()
+
+        # Schedule the recording
         self.scheduler.schedule_recording(start_dt, end_dt, output_path)
-        QMessageBox.information(self, 'Scheduled', f'Recording scheduled from {start_dt} to {end_dt}.')
+        duration_label = self.duration_options[duration_index][0]
+        
+        # Add to status log
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        self.status_text.append(f"[{timestamp}] Scheduled Recording")
+        self.status_text.append(f"  Start: {start_dt.strftime('%Y-%m-%d %H:%M:%S')}")
+        self.status_text.append(f"  Duration: {duration_label}")
+        self.status_text.append(f"  Output: {output_path}")
+        self.status_text.append(f"  Source: {source} | Audio: {audio_source}")
+        
+        QMessageBox.information(self, 'Scheduled', f'Recording scheduled from {start_dt.strftime("%H:%M:%S")} for {duration_label}.')
 
     def stop_recording(self):
         self.recorder.stop_recording()

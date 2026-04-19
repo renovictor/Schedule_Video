@@ -1,0 +1,13 @@
+name: Video Recorder
+description: Professional video recording application for Windows 11
+homepage: https://github.com/vhuang01/Video_Record
+documentation: https://github.com/vhuang01/Video_Record/tree/main/docs
+repository: https://github.com/vhuang01/Video_Record
+issues: https://github.com/vhuang01/Video_Record/issues
+labels:
+  - bug
+  - enhancement
+  - documentation
+  - good first issue
+  - help wanted
+
