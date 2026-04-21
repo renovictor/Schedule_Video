@@ -6,3 +6,4 @@ numpy
 sounddevice
 soundfile
 scipy
+pyaudio

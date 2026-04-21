@@ -1,11 +1,24 @@
 # Video Recorder - Version Information
 
-VERSION = "1.0.1"
-BUILD_DATE = "April 19, 2026"
+VERSION = "1.0.2"
+BUILD_DATE = "April 21, 2026"
 PROJECT_NAME = "Video Recorder with Audio Source Selection"
 
 # Version History
 HISTORY = {
+    "1.0.2": {
+        "date": "April 21, 2026",
+        "features": [
+            "Added Display tab for video playback",
+            "Fixed PySide6 audio output bug for volume control",
+            "Added volume slider with visual tick marks",
+            "Enhanced GUI with colorful design",
+            "Added file path input for playback video selection",
+            "Improved audio/video synchronization",
+            "Added Play button for video playback",
+            "Enhanced status logging and error handling"
+        ]
+    },
     "1.0.1": {
         "date": "April 19, 2026",
         "features": [
@@ -152,4 +165,3 @@ if __name__ == "__main__":
     print(f"Build Date: {BUILD_DATE}")
     print(f"Status: {STATUS['development']}")
     print(f"Production Ready: {STATUS['ready_for_production']}")
-

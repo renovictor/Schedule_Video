@@ -1,6 +1,8 @@
-from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QDateTimeEdit, QPushButton, QMessageBox, QLineEdit, QFileDialog, QComboBox, QTextEdit
-from PySide6.QtCore import QDateTime, Qt
+from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QDateTimeEdit, QPushButton, QMessageBox, QLineEdit, QFileDialog, QComboBox, QTextEdit, QTabWidget, QSlider
+from PySide6.QtCore import QDateTime, Qt, QUrl, QTimer
 from PySide6.QtGui import QIcon, QFont
+from PySide6.QtMultimediaWidgets import QVideoWidget
+from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 from capture import VideoRecorder
 from scheduler import RecordingScheduler
 import sys
@@ -13,18 +15,40 @@ class MainWindow(QWidget):
         self.recorder = VideoRecorder()
         self.scheduler = RecordingScheduler(self.recorder)
         self.init_ui()
+        self.apply_styles()
         # Register callback with scheduler after UI is initialized
         self.scheduler.set_status_callback(self.add_status_message)
 
     def init_ui(self):
         self.setWindowTitle('Video Recorder Scheduler')
-        self.setGeometry(100, 100, 500, 500)
+        self.setGeometry(100, 100, 700, 800)
 
         # Set window icon
         icon_path = os.path.join(os.path.dirname(__file__), 'global_search_international.ico')
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
 
+        # Create tab widget
+        self.tabs = QTabWidget()
+        main_layout = QVBoxLayout()
+        main_layout.addWidget(self.tabs)
+        self.setLayout(main_layout)
+        
+        # Create tabs
+        self.recording_tab = QWidget()
+        self.display_tab = QWidget()
+        
+        self.tabs.addTab(self.recording_tab, "Recording")
+        self.tabs.addTab(self.display_tab, "Display")
+        
+        # Initialize Recording Tab
+        self.init_recording_tab()
+        
+        # Initialize Display Tab
+        self.init_display_tab()
+
+    def init_recording_tab(self):
+        """Initialize the Recording tab with original UI elements"""
         layout = QVBoxLayout()
 
         # LED Status Indicator
@@ -43,6 +67,7 @@ class MainWindow(QWidget):
         
         # Fresh button to reset start time to current
         fresh_button = QPushButton('Fresh')
+        fresh_button.setObjectName('freshBtn')
         fresh_button.setMaximumWidth(80)
         fresh_button.clicked.connect(self.on_refresh_start_time)
         start_layout.addWidget(fresh_button)
@@ -79,6 +104,7 @@ class MainWindow(QWidget):
         self.path_edit.setText(f"C:\\Users\\vhuang01\\Videos\\Video_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4")
         output_layout.addWidget(self.path_edit)
         browse_button = QPushButton('Browse...')
+        browse_button.setObjectName('browseBtn')
         browse_button.clicked.connect(self.browse_file)
         output_layout.addWidget(browse_button)
         layout.addLayout(output_layout)
@@ -109,6 +135,7 @@ class MainWindow(QWidget):
 
         # Schedule button
         self.schedule_button = QPushButton('Schedule Recording')
+        self.schedule_button.setObjectName('scheduleBtn')
         self.schedule_button.clicked.connect(self.schedule_recording)
         layout.addWidget(self.schedule_button)
 
@@ -117,17 +144,20 @@ class MainWindow(QWidget):
         
         # Start button
         self.start_button = QPushButton('Start')
+        self.start_button.setObjectName('startBtn')
         self.start_button.clicked.connect(self.on_start_recording)
         control_layout.addWidget(self.start_button)
 
         # Pause button
         self.pause_button = QPushButton('Pause')
+        self.pause_button.setObjectName('pauseBtn')
         self.pause_button.clicked.connect(self.on_pause_recording)
         self.pause_button.setEnabled(False)
         control_layout.addWidget(self.pause_button)
 
         # Stop button
         self.stop_button = QPushButton('Stop')
+        self.stop_button.setObjectName('stopBtn')
         self.stop_button.clicked.connect(self.on_stop_recording)
         self.stop_button.setEnabled(False)
         control_layout.addWidget(self.stop_button)
@@ -144,10 +174,229 @@ class MainWindow(QWidget):
 
         # Exit button
         exit_button = QPushButton('Exit')
+        exit_button.setObjectName('exitBtn')
         exit_button.clicked.connect(self.close)
         layout.addWidget(exit_button)
 
-        self.setLayout(layout)
+        self.recording_tab.setLayout(layout)
+
+    def init_display_tab(self):
+        """Initialize the Display tab with video playback functionality"""
+        layout = QVBoxLayout()
+        
+        # File path selection
+        file_layout = QHBoxLayout()
+        file_layout.addWidget(QLabel('Video File:'))
+        self.video_path_edit = QLineEdit()
+        self.video_path_edit.setPlaceholderText("Select a video file to play...")
+        file_layout.addWidget(self.video_path_edit)
+        browse_video_button = QPushButton('Browse...')
+        browse_video_button.setObjectName('browseBtn')
+        browse_video_button.clicked.connect(self.browse_video_file)
+        file_layout.addWidget(browse_video_button)
+        layout.addLayout(file_layout)
+        
+        # Player status label
+        self.player_status_label = QLabel('Status: Ready')
+        self.player_status_label.setStyleSheet('color: #2196F3; font-weight: bold;')
+        layout.addWidget(self.player_status_label)
+        
+        # Video player widget
+        self.video_widget = QVideoWidget()
+        self.video_widget.setStyleSheet('background-color: #000000;')
+        self.video_widget.setMinimumHeight(300)
+        layout.addWidget(self.video_widget, 1)  # Give it stretch factor
+        
+        # Media player (not visible, just for playback control)
+        self.media_player = QMediaPlayer()
+        self.media_player.setVideoOutput(self.video_widget)
+        
+        # Audio output for volume control
+        self.audio_output = QAudioOutput()
+        self.audio_output.setVolume(0.8)  # Default 80%
+        self.media_player.setAudioOutput(self.audio_output)
+        
+        self.media_player.errorOccurred.connect(self.on_media_error)
+        
+        # Play button
+        play_button = QPushButton('Play')
+        play_button.setObjectName('playBtn')
+        play_button.clicked.connect(self.play_video)
+        
+        # Pause button
+        video_pause_button = QPushButton('Pause')
+        video_pause_button.setObjectName('pauseBtn')
+        video_pause_button.clicked.connect(self.pause_video)
+        
+        # Stop button
+        video_stop_button = QPushButton('Stop')
+        video_stop_button.setObjectName('stopBtn')
+        video_stop_button.clicked.connect(self.stop_video)
+        
+        # Control buttons layout
+        control_layout = QHBoxLayout()
+        control_layout.addWidget(play_button)
+        control_layout.addWidget(video_pause_button)
+        control_layout.addWidget(video_stop_button)
+        control_layout.addStretch()
+        layout.addLayout(control_layout)
+        
+        # Video adjustment sliders
+        sliders_layout = QVBoxLayout()
+        sliders_layout.setSpacing(10)
+        
+        # Volume slider
+        volume_layout = QHBoxLayout()
+        volume_layout.addWidget(QLabel('Audio Volume:'))
+        self.volume_slider = QSlider(Qt.Horizontal)
+        self.volume_slider.setMinimum(0)
+        self.volume_slider.setMaximum(100)
+        self.volume_slider.setValue(80)
+        self.volume_slider.setTickPosition(QSlider.TicksBelow)
+        self.volume_slider.setTickInterval(10)
+        self.volume_slider.valueChanged.connect(self.set_volume)
+        volume_layout.addWidget(self.volume_slider)
+        self.volume_label = QLabel('80%')
+        self.volume_label.setMinimumWidth(40)
+        volume_layout.addWidget(self.volume_label)
+        sliders_layout.addLayout(volume_layout)
+        
+        # Video quality/brightness slider (simulated)
+        quality_layout = QHBoxLayout()
+        quality_layout.addWidget(QLabel('Video Brightness:'))
+        self.brightness_slider = QSlider(Qt.Horizontal)
+        self.brightness_slider.setMinimum(0)
+        self.brightness_slider.setMaximum(200)
+        self.brightness_slider.setValue(100)
+        quality_layout.addWidget(self.brightness_slider)
+        self.brightness_label = QLabel('100%')
+        self.brightness_label.setMinimumWidth(40)
+        quality_layout.addWidget(self.brightness_label)
+        sliders_layout.addLayout(quality_layout)
+        
+        layout.addLayout(sliders_layout)
+        
+        # Position slider for video playback
+        position_layout = QHBoxLayout()
+        position_layout.addWidget(QLabel('Position:'))
+        self.position_slider = QSlider(Qt.Horizontal)
+        self.position_slider.setMinimum(0)
+        self.position_slider.sliderMoved.connect(self.set_position)
+        position_layout.addWidget(self.position_slider)
+        self.time_label = QLabel('00:00 / 00:00')
+        self.time_label.setMinimumWidth(100)
+        self.time_label.setStyleSheet('font-weight: bold;')
+        position_layout.addWidget(self.time_label)
+        layout.addLayout(position_layout)
+        
+        # Update position and duration when media changes
+        self.media_player.durationChanged.connect(self.on_duration_changed)
+        self.media_player.positionChanged.connect(self.on_position_changed)
+        self.media_player.playbackStateChanged.connect(self.on_playback_state_changed)
+        
+        layout.addStretch()
+        self.display_tab.setLayout(layout)
+    
+    def on_media_error(self, error):
+        """Handle media player errors"""
+        error_msg = self.media_player.errorString()
+        self.player_status_label.setText(f'Error: {error_msg}')
+        self.player_status_label.setStyleSheet('color: #f44336; font-weight: bold;')
+        QMessageBox.warning(self, 'Playback Error', f'Media player error: {error_msg}')
+    
+    def on_playback_state_changed(self, state):
+        """Update status label based on playback state"""
+        from PySide6.QtMultimedia import QMediaPlayer
+        if state == QMediaPlayer.PlayingState:
+            self.player_status_label.setText('Status: Playing ▶')
+            self.player_status_label.setStyleSheet('color: #4CAF50; font-weight: bold;')
+        elif state == QMediaPlayer.PausedState:
+            self.player_status_label.setText('Status: Paused ⏸')
+            self.player_status_label.setStyleSheet('color: #FF9800; font-weight: bold;')
+        elif state == QMediaPlayer.StoppedState:
+            self.player_status_label.setText('Status: Stopped ⏹')
+            self.player_status_label.setStyleSheet('color: #f44336; font-weight: bold;')
+    
+    def browse_video_file(self):
+        """Browse for a video file"""
+        options = QFileDialog.Options()
+        file_name, _ = QFileDialog.getOpenFileName(self, "Select Video File", "", "Video Files (*.mp4 *.avi *.mov *.mkv);;All Files (*)", options=options)
+        if file_name:
+            self.video_path_edit.setText(file_name)
+    
+    def play_video(self):
+        """Play the selected video"""
+        video_path = self.video_path_edit.text()
+        if not video_path:
+            QMessageBox.warning(self, 'Error', 'Please select a video file first.')
+            self.player_status_label.setText('Status: No file selected')
+            self.player_status_label.setStyleSheet('color: #f44336; font-weight: bold;')
+            return
+        
+        if not os.path.exists(video_path):
+            QMessageBox.warning(self, 'Error', f'Video file not found: {video_path}')
+            self.player_status_label.setText('Status: File not found')
+            self.player_status_label.setStyleSheet('color: #f44336; font-weight: bold;')
+            return
+        
+        try:
+            # Set the source and play
+            self.media_player.setSource(QUrl.fromLocalFile(video_path))
+            self.player_status_label.setText('Status: Loading...')
+            self.player_status_label.setStyleSheet('color: #FF9800; font-weight: bold;')
+            
+            # Small delay to ensure media is loaded before playing
+            QTimer.singleShot(500, self.media_player.play)
+        except Exception as e:
+            QMessageBox.warning(self, 'Error', f'Failed to play video: {str(e)}')
+            self.player_status_label.setText(f'Status: Error - {str(e)}')
+            self.player_status_label.setStyleSheet('color: #f44336; font-weight: bold;')
+    
+    def pause_video(self):
+        """Pause the video"""
+        self.media_player.pause()
+    
+    def stop_video(self):
+        """Stop the video"""
+        self.media_player.stop()
+    
+    def set_volume(self, value):
+        """Set the media player volume"""
+        # Convert from 0-100 to 0.0-1.0 for QAudioOutput
+        volume_level = value / 100.0
+        self.audio_output.setVolume(volume_level)
+        self.volume_label.setText(f'{value}%')
+    
+    def set_position(self, position):
+        """Set the video position"""
+        self.media_player.setPosition(position)
+    
+    def on_duration_changed(self, duration):
+        """Update max value of position slider when duration changes"""
+        self.position_slider.setMaximum(duration)
+        self.update_time_label()
+    
+    def on_position_changed(self, position):
+        """Update position slider when video plays"""
+        self.position_slider.blockSignals(True)
+        self.position_slider.setValue(position)
+        self.position_slider.blockSignals(False)
+        self.update_time_label()
+    
+    def update_time_label(self):
+        """Update the time label with current position and duration"""
+        position = self.media_player.position()
+        duration = self.media_player.duration()
+        
+        def ms_to_time_str(ms):
+            if ms < 0:
+                ms = 0
+            seconds = ms // 1000
+            minutes = seconds // 60
+            seconds = seconds % 60
+            return f'{minutes:02d}:{seconds:02d}'
+        
+        self.time_label.setText(f'{ms_to_time_str(position)} / {ms_to_time_str(duration)}')
 
     def browse_file(self):
         options = QFileDialog.Options()
@@ -307,6 +556,206 @@ class MainWindow(QWidget):
     def stop_recording(self):
         self.recorder.stop_recording()
         QMessageBox.information(self, 'Stopped', 'Recording stopped.')
+
+    def apply_styles(self):
+        """Apply colorful stylesheet to the application"""
+        stylesheet = """
+            QWidget {
+                background-color: #f0f0f0;
+            }
+            
+            QTabWidget {
+                background-color: #ffffff;
+            }
+            
+            QTabBar::tab {
+                background-color: #e0e0e0;
+                color: #333333;
+                padding: 8px 20px;
+                margin-right: 2px;
+                border: 1px solid #cccccc;
+                border-bottom: none;
+                border-radius: 4px 4px 0px 0px;
+                font-weight: bold;
+            }
+            
+            QTabBar::tab:selected {
+                background-color: #4CAF50;
+                color: white;
+                border: 1px solid #45a049;
+            }
+            
+            QTabBar::tab:hover {
+                background-color: #45a049;
+                color: white;
+            }
+            
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-weight: bold;
+                font-size: 11pt;
+            }
+            
+            QPushButton:hover {
+                background-color: #0b7dda;
+            }
+            
+            QPushButton:pressed {
+                background-color: #084298;
+            }
+            
+            QPushButton:disabled {
+                background-color: #cccccc;
+                color: #666666;
+            }
+            
+            QPushButton#startBtn {
+                background-color: #4CAF50;
+            }
+            
+            QPushButton#startBtn:hover {
+                background-color: #45a049;
+            }
+            
+            QPushButton#pauseBtn {
+                background-color: #FF9800;
+            }
+            
+            QPushButton#pauseBtn:hover {
+                background-color: #fb8500;
+            }
+            
+            QPushButton#stopBtn {
+                background-color: #f44336;
+            }
+            
+            QPushButton#stopBtn:hover {
+                background-color: #da190b;
+            }
+            
+            QPushButton#exitBtn {
+                background-color: #9c27b0;
+            }
+            
+            QPushButton#exitBtn:hover {
+                background-color: #7b1fa2;
+            }
+            
+            QPushButton#freshBtn {
+                background-color: #00BCD4;
+            }
+            
+            QPushButton#freshBtn:hover {
+                background-color: #0097a7;
+            }
+            
+            QPushButton#playBtn {
+                background-color: #4CAF50;
+            }
+            
+            QPushButton#playBtn:hover {
+                background-color: #45a049;
+            }
+            
+            QPushButton#browseBtn {
+                background-color: #FF5722;
+            }
+            
+            QPushButton#browseBtn:hover {
+                background-color: #e64a19;
+            }
+            
+            QPushButton#scheduleBtn {
+                background-color: #9C27B0;
+            }
+            
+            QPushButton#scheduleBtn:hover {
+                background-color: #7b1fa2;
+            }
+            
+            QLabel {
+                color: #333333;
+                font-size: 10pt;
+            }
+            
+            QLineEdit {
+                border: 2px solid #cccccc;
+                border-radius: 4px;
+                padding: 5px;
+                background-color: #ffffff;
+                color: #333333;
+            }
+            
+            QLineEdit:focus {
+                border: 2px solid #2196F3;
+            }
+            
+            QComboBox {
+                border: 2px solid #cccccc;
+                border-radius: 4px;
+                padding: 5px;
+                background-color: #ffffff;
+                color: #333333;
+            }
+            
+            QComboBox:focus {
+                border: 2px solid #2196F3;
+            }
+            
+            QComboBox::drop-down {
+                border: none;
+                background-color: #2196F3;
+                width: 20px;
+            }
+            
+            QComboBox::down-arrow {
+                image: none;
+                color: white;
+            }
+            
+            QTextEdit {
+                border: 2px solid #cccccc;
+                border-radius: 4px;
+                background-color: #fafafa;
+                color: #333333;
+            }
+            
+            QSlider::groove:horizontal {
+                border: 1px solid #cccccc;
+                height: 8px;
+                background: #e0e0e0;
+                border-radius: 4px;
+            }
+            
+            QSlider::handle:horizontal {
+                background: #2196F3;
+                border: 1px solid #1976d2;
+                width: 18px;
+                margin: -5px 0;
+                border-radius: 9px;
+            }
+            
+            QSlider::handle:horizontal:hover {
+                background: #1976d2;
+            }
+            
+            QDateTimeEdit {
+                border: 2px solid #cccccc;
+                border-radius: 4px;
+                padding: 5px;
+                background-color: #ffffff;
+                color: #333333;
+            }
+            
+            QDateTimeEdit:focus {
+                border: 2px solid #2196F3;
+            }
+        """
+        self.setStyleSheet(stylesheet)
 
     def closeEvent(self, event):
         self.scheduler.shutdown()
