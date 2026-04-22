@@ -28,11 +28,12 @@ class MainWindow(QWidget):
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
 
+        # Create main layout with tabs and exit button
+        main_layout = QVBoxLayout()
+        
         # Create tab widget
         self.tabs = QTabWidget()
-        main_layout = QVBoxLayout()
         main_layout.addWidget(self.tabs)
-        self.setLayout(main_layout)
         
         # Create tabs
         self.recording_tab = QWidget()
@@ -46,6 +47,14 @@ class MainWindow(QWidget):
         
         # Initialize Display Tab
         self.init_display_tab()
+        
+        # Exit button outside tabs (accessible from every tab)
+        exit_button = QPushButton('Exit')
+        exit_button.setObjectName('exitBtn')
+        exit_button.clicked.connect(self.close)
+        main_layout.addWidget(exit_button)
+        
+        self.setLayout(main_layout)
 
     def init_recording_tab(self):
         """Initialize the Recording tab with original UI elements"""
@@ -55,7 +64,7 @@ class MainWindow(QWidget):
         led_layout = QHBoxLayout()
         led_layout.addWidget(QLabel('Recording Status:'))
         self.led_indicator = QLabel('●')
-        self.led_indicator.setFont(QFont('Arial', 20, QFont.Bold))
+        self.led_indicator.setFont(QFont('Arial', 60, QFont.Bold))
         self.led_indicator.setStyleSheet('color: green;')  # Default to green (stopped)
         self.led_indicator.setAlignment(Qt.AlignCenter)
         led_layout.addWidget(self.led_indicator)
@@ -172,11 +181,6 @@ class MainWindow(QWidget):
         self.status_text.setPlaceholderText("Recording status will be displayed here...")
         layout.addWidget(self.status_text, 1)  # Give it stretch factor of 1
 
-        # Exit button
-        exit_button = QPushButton('Exit')
-        exit_button.setObjectName('exitBtn')
-        exit_button.clicked.connect(self.close)
-        layout.addWidget(exit_button)
 
         self.recording_tab.setLayout(layout)
 
@@ -289,12 +293,36 @@ class MainWindow(QWidget):
         position_layout.addWidget(self.time_label)
         layout.addLayout(position_layout)
         
+        # Audio sync slider for manual audio/video synchronization
+        sync_layout = QHBoxLayout()
+        sync_layout.addWidget(QLabel('Audio Sync:'))
+        self.audio_sync_slider = QSlider(Qt.Horizontal)
+        self.audio_sync_slider.setMinimum(-50)  # -5.0 seconds (multiply by 10)
+        self.audio_sync_slider.setMaximum(50)   # +5.0 seconds (multiply by 10)
+        self.audio_sync_slider.setValue(0)      # Default 0.0s offset
+        self.audio_sync_slider.setTickPosition(QSlider.TicksBelow)
+        self.audio_sync_slider.setTickInterval(5)  # 0.5 second intervals
+        self.audio_sync_slider.valueChanged.connect(self.on_audio_sync_changed)
+        sync_layout.addWidget(self.audio_sync_slider)
+        self.sync_label = QLabel('0.0s')
+        self.sync_label.setMinimumWidth(50)
+        self.sync_label.setStyleSheet('font-weight: bold;')
+        sync_layout.addWidget(self.sync_label)
+        layout.addLayout(sync_layout)
+        
         # Update position and duration when media changes
         self.media_player.durationChanged.connect(self.on_duration_changed)
         self.media_player.positionChanged.connect(self.on_position_changed)
         self.media_player.playbackStateChanged.connect(self.on_playback_state_changed)
         
         layout.addStretch()
+        
+        # Save button to save the mp4 after finding sync position
+        save_button = QPushButton('Save Synced Video')
+        save_button.setObjectName('saveBtn')
+        save_button.clicked.connect(self.save_synced_video)
+        layout.addWidget(save_button)
+        
         self.display_tab.setLayout(layout)
     
     def on_media_error(self, error):
@@ -397,6 +425,98 @@ class MainWindow(QWidget):
             return f'{minutes:02d}:{seconds:02d}'
         
         self.time_label.setText(f'{ms_to_time_str(position)} / {ms_to_time_str(duration)}')
+    
+    def on_audio_sync_changed(self, value):
+        """Update audio sync label when slider changes"""
+        # Convert from tenths of seconds to actual seconds for display
+        seconds = value / 10.0
+        self.sync_label.setText(f'{seconds:.1f}s')
+        # Store the offset for later use when saving
+        self.current_audio_offset = seconds
+    
+    def save_synced_video(self):
+        """Save the mp4 with audio offset applied after finding sync position"""
+        video_path = self.video_path_edit.text()
+        
+        if not video_path:
+            QMessageBox.warning(self, 'Error', 'Please select a video file first.')
+            return
+        
+        if not os.path.exists(video_path):
+            QMessageBox.warning(self, 'Error', f'Video file not found: {video_path}')
+            return
+        
+        # Get the audio offset in seconds (slider value / 10.0)
+        audio_offset_seconds = self.audio_sync_slider.value() / 10.0
+        
+        # Open file dialog to save the synced video
+        options = QFileDialog.Options()
+        file_name, _ = QFileDialog.getSaveFileName(
+            self, 
+            "Save Synced Video File", 
+            os.path.splitext(video_path)[0] + "_synced.mp4",
+            "MP4 Files (*.mp4);;All Files (*)", 
+            options=options
+        )
+        
+        if not file_name:
+            return
+        
+        try:
+            # Show a message that we're processing
+            self.player_status_label.setText(f'Status: Saving synced video with {audio_offset_seconds:.1f}s offset...')
+            self.player_status_label.setStyleSheet('color: #FF9800; font-weight: bold;')
+            QApplication.processEvents()
+            
+            # Use ffmpeg to apply the audio delay offset
+            import subprocess
+            
+            if audio_offset_seconds >= 0:
+                # Delay audio (add silence at the beginning of audio)
+                # FFmpeg adelay filter uses milliseconds
+                delay_ms = int(audio_offset_seconds * 1000)
+                ffmpeg_cmd = [
+                    'ffmpeg',
+                    '-i', video_path,
+                    '-af', f'adelay={delay_ms}|{delay_ms}',
+                    '-c:v', 'copy',
+                    '-c:a', 'aac',
+                    '-y',
+                    file_name
+                ]
+            else:
+                # Advance audio (skip beginning of audio)
+                # FFmpeg atrim filter uses seconds
+                trim_seconds = abs(audio_offset_seconds)
+                ffmpeg_cmd = [
+                    'ffmpeg',
+                    '-i', video_path,
+                    '-af', f'atrim=start={trim_seconds}',
+                    '-c:v', 'copy',
+                    '-c:a', 'aac',
+                    '-y',
+                    file_name
+                ]
+            
+            # Run ffmpeg command
+            subprocess.run(ffmpeg_cmd, check=True, capture_output=True)
+            
+            self.player_status_label.setText(f'Status: Video saved successfully to {os.path.basename(file_name)}')
+            self.player_status_label.setStyleSheet('color: #4CAF50; font-weight: bold;')
+            QMessageBox.information(self, 'Success', f'Synced video saved to:\n{file_name}\n\nAudio offset: {audio_offset_seconds:.1f}s')
+            
+        except FileNotFoundError:
+            QMessageBox.warning(self, 'Error', 'FFmpeg not found. Please install FFmpeg to use this feature.')
+            self.player_status_label.setText('Status: FFmpeg not found')
+            self.player_status_label.setStyleSheet('color: #f44336; font-weight: bold;')
+        except subprocess.CalledProcessError as e:
+            QMessageBox.warning(self, 'Error', f'Failed to save synced video:\n{str(e)}')
+            self.player_status_label.setText('Status: Error saving synced video')
+            self.player_status_label.setStyleSheet('color: #f44336; font-weight: bold;')
+        except Exception as e:
+            QMessageBox.warning(self, 'Error', f'Unexpected error: {str(e)}')
+            self.player_status_label.setText(f'Status: Error - {str(e)}')
+            self.player_status_label.setStyleSheet('color: #f44336; font-weight: bold;')
 
     def browse_file(self):
         options = QFileDialog.Options()
@@ -675,6 +795,14 @@ class MainWindow(QWidget):
             
             QPushButton#scheduleBtn:hover {
                 background-color: #7b1fa2;
+            }
+            
+            QPushButton#saveBtn {
+                background-color: #607D8B;
+            }
+            
+            QPushButton#saveBtn:hover {
+                background-color: #455A64;
             }
             
             QLabel {

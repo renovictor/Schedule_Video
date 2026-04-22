@@ -1,6 +1,6 @@
 # Video Recorder Scheduler
 
-A professional Windows 11 video recording application with audio capture, scheduling, and multi-source support.
+A professional Windows 11 video recording application with audio capture, scheduling, multi-source support, and video playback with audio synchronization.
 
 ## Features
 
@@ -19,10 +19,19 @@ A professional Windows 11 video recording application with audio capture, schedu
 - Schedule recordings for specific date/time ranges
 - Automated start/stop
 
+✅ **Video Playback & Audio Sync (v1.0.3)**
+- Play recorded videos in the Display tab
+- Audio Sync slider for manual audio/video synchronization
+- Range: -5.0 to +5.0 seconds with 0.1 second precision
+- Save synced videos with FFmpeg audio processing
+- Real-time volume and brightness adjustment sliders
+
 ✅ **GUI Controls**
 - Start/Pause/Stop buttons with intelligent state management
 - File browser for output location
+- Large LED indicator showing recording status (green/red/yellow)
 - Real-time status log with timestamps
+- Exit button accessible from any tab
 - All recordings save to `C:\Users\vhuang01\Videos\` by default
 
 ## Installation

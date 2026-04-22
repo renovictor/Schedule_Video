@@ -1,11 +1,24 @@
 # Video Recorder - Version Information
 
-VERSION = "1.0.2"
-BUILD_DATE = "April 21, 2026"
+VERSION = "1.0.3"
+BUILD_DATE = "April 22, 2026"
 PROJECT_NAME = "Video Recorder with Audio Source Selection"
 
 # Version History
 HISTORY = {
+    "1.0.3": {
+        "date": "April 22, 2026",
+        "features": [
+            "Increased Recording Status LED size 3x (60pt font)",
+            "Added Audio Sync slider in Display tab (-5.0 to +5.0 seconds)",
+            "Audio Sync slider with real-time seconds display",
+            "Added Save Synced Video button for audio/video synchronization",
+            "Moved Exit button outside tabs for accessibility from any tab",
+            "FFmpeg integration for audio delay processing",
+            "Support for both positive (delay) and negative (advance) audio offsets",
+            "Improved audio sync workflow with visual feedback"
+        ]
+    },
     "1.0.2": {
         "date": "April 21, 2026",
         "features": [

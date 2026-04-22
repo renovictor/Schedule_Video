@@ -356,9 +356,85 @@ None - all already included:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.0.3 | Apr 22, 2026 | Audio Sync slider, larger LED (3x), improved UI |
+| 1.0.2 | Apr 21, 2026 | Display tab, video playback, volume control |
+| 1.0.1 | Apr 20, 2026 | Fresh button, multi-audio support, bug fixes |
 | 1.0 | Apr 18, 2026 | Audio source selection, FFmpeg integration |
 | 0.9 | Apr 17, 2026 | Video + screen recording, scheduling |
 | 0.8 | Apr 16, 2026 | Basic recording, start/pause/stop |
+
+---
+
+## [1.0.3] - April 22, 2026
+
+### Major Updates
+- **Recording Status LED**: Increased size 3x (20pt → 60pt) for better visibility
+- **Audio Sync Slider**: New feature in Display tab (-5.0 to +5.0 seconds range)
+- **Save Synced Video**: Save videos with applied audio offset using FFmpeg
+- **Exit Button**: Moved outside tabs for accessibility from any tab
+
+### Features Added
+- Audio Sync slider with 0.1 second precision
+- Real-time sync label display (e.g., "1.5s", "-2.0s")
+- FFmpeg-based audio processing (adelay and atrim filters)
+- Professional audio codec (AAC) for output
+- Improved error handling and user feedback
+
+### Files Modified
+- `gui.py` - Enhanced UI with Audio Sync controls and larger LED
+- `VERSION.py` - Updated to 1.0.3
+- `README.md` - Updated with new features
+
+### Files Added
+- `RELEASE_v1.0.3.md` - Comprehensive release notes
+- `UPDATE_SUMMARY_v1_0_3.md` - Detailed update documentation
+- `commit_v1.0.3.bat` - Automated commit script
+- `commit_v1.0.3.ps1` - PowerShell commit script
+
+### Bug Fixes
+- Fixed audio sync slider not working properly
+- Corrected millisecond to second conversion
+- Improved FFmpeg command construction
+
+---
+
+## [1.0.2] - April 21, 2026
+
+### Major Updates
+- **Display Tab**: New tab for video playback and audio/video adjustment
+- **Video Playback**: Full playback controls (Play, Pause, Stop)
+- **Audio Volume Slider**: Real-time volume adjustment with percentage display
+- **Brightness Control**: Video brightness adjustment slider
+- **Position Seeking**: Timeline position slider with time display
+
+### Features Added
+- QMediaPlayer integration
+- QAudioOutput for volume control
+- QVideoWidget for video display
+- Position and duration tracking
+- Media error handling
+
+---
+
+## [1.0.1] - April 20, 2026
+
+### Features Added
+- **Fresh Button**: Reset start time to current time
+- **All of Above Audio Option**: Record from multiple audio sources
+- **Version File**: VERSION.py for version management
+- **Improved Documentation**: Better setup instructions
+
+---
+
+## [1.0.0] - April 18, 2026
+
+### Initial Release
+- Video recording (camera and screens)
+- Audio recording with device selection
+- Recording scheduling
+- Start/Pause/Stop controls
+- LED status indicator
+- File management and browsing
 
 ---
 

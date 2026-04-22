@@ -1,5 +1,9 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import sys
+sys.path.append('.')
+from VERSION import VERSION
+
 
 a = Analysis(
     ['main.py'],
@@ -22,7 +26,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='VictorVideo_',
+    name='Schedule_video_V' + VERSION,
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
